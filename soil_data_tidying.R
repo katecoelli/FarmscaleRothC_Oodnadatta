@@ -9,22 +9,6 @@
 
 
 
-
-#TEST EDITS TO CHECK
-#
-##PULL
-#and
-##PUSH
-
-
-
-
-
-
-
-
-
-
 # Soil Data - dataframe which contains the following variables
 # SOC
 # POC (RPM in RothC)
