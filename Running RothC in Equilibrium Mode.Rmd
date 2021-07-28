@@ -52,7 +52,7 @@ When I was to loop through multiple sites replace the 1s with i and include in a
 soil.thick=30  #Soil thickness (organic layer topsoil), in cm
 SOC=soil_data[1, "SOC"]       #Soil organic carbon in Mg/ha 
 clay=soil_data[1, "Clay"]         #Percent clay
-Cinputs=data.frame(Cinputs = seq(1,6,1))   #Annual C inputs to soil in Mg/ha/yr 
+Cinputs=seq(1,20,1)   #Annual C inputs to soil in Mg/ha/yr 
 
 ```
 
@@ -86,9 +86,7 @@ include_graphics("rmd_images/Gray_et_al_2019.jpg")
 As with the other items we will include this in a loop and replace 1 with i when we calculate at multiple sites
 
 ```{r}
-#IOM<- soil_data[1, "ROC"]
-
-IOM<- 11.88
+IOM<- soil_data[1, "ROC"]
 
 FallIOM=0.049*SOC^(1.139) #IOM using Falloon method
 
@@ -96,47 +94,98 @@ FallIOM=0.049*SOC^(1.139) #IOM using Falloon method
 
 
 ## Run the model
+Here, we calculate the fractions on a monthly timestep and then take the average of the last 5 years of the simulation period.
+This is assumed to be in an equilibrium state. 
+This model is run through a number of different cinput options (specified in a previous code chunk).
 
 ```{r}
-res = data.frame(c_input = rep(1, length(years)), timestep = years, DPM=NA, RPM=NA, BIO=NA, HUM=NA, IOM=NA)    #nrow of matrix = number of cinput options * number years
+res = data.frame(c_input = NA, DPM=NA, RPM=NA, BIO=NA, HUM=NA, IOM=NA)    #nrow of matrix = number of cinput options * number years
 results<- list()
 
 
 ##continue here tomorrow with the grid search to optimise by C-inputs at each site + heatmaps
 #figure out loop to:
-  #test C-inputs of 1:20 at each site
-  #get average fractions of last 5 years 
-  #sum these values
-  #compare this to the measured SOC value
+   #compare this to the measured SOC value
   #select option with minimum error
   #base this on the grid search code I used for the WUE * HI work to get the heatmap and plot heatmaps.
 
-
-
-for(i in 1:nrow(Cinputs)){
+  
+for(i in 1:length(Cinputs)){
 Model1<-RothCModel(t=years, C0=c(DPM=0, RPM=0, BIO=0, HUM=0, IOM=IOM),
-                   In=Cinputs[i,"Cinputs"], clay=clay, xi=xi.frame) #Loads the model
+                   In=Cinputs[i], clay=clay, xi=xi.frame) #Loads the model
 tmp=getC(Model1) #calculates stocks for each pool per month
-res[3:7] = tmp
+tmp=as.data.frame(tmp)
+lst_5_yr=tmp[(nrow(tmp)-5*12):nrow(tmp),]
+lst_5_yr_avge = colMeans(lst_5_yr)
+res[1] = Cinputs[i]
+res[2:6] = lst_5_yr_avge
+res$SOC = sum(res[2:6])
 results[[i]]<-res
 }
 
-monthly_Cfractions<- do.call(rbind, results)
+#average cinputs of last 5 years for each Cinput amount at a given site.
+avge_by_cinputs<- do.call(rbind, results)
+
+```
+
+
+
+## Optimise the model
+Here, the total SOC, determined by the sum of the fractions is compared to the SOC measurement at the site.
+The summed fractions of the cinput which produces the smallest error will be used as the starting fractions to run the model in real time.
+
+replace 1 with i once looping through sites
+```{r}
+
+
+for(i in 1:nrow(avge_by_cinputs)){
+  observed<- soil_data[1,"SOC"]
+  predicted<- avge_by_cinputs[i, "SOC"]
+  error<- (observed-predicted)^2
+  avge_by_cinputs[i,"error"]<- error
+}
+
+fractions<- avge_by_cinputs%>%
+  dplyr::filter(error==min(error))
+
 
 
 ```
+
+
+### Create a heatmap to show minimum error
+
+
+```{r}
+
+ggplot()+
+  geom_tile(heat_map_errors, mapping = aes(COEFF, WUE, fill=crop_total_error))+
+  scale_fill_viridis(option = "D")+
+  geom_label(min_error, mapping = aes(COEFF, WUE, label = "min_error"))+
+  ggsave("heatmap_crop_WUEvsCOEFF_minerror.png")
+
+```
+
+
+The final size of the pools after this 100 year spinup are
+
+```{r}
+kable(fractions, caption = "Fractions to initialise real time model")
+
+```
+
 
 The results can be plotted with the commands
 
 ```{r}
 matplot(years, tmp, type="l", lty=1, col=1:5,
-        main = paste("equilibrium run of site:", soil_data[1,"ID"], "with plant inputs of ", Cinputs[6, "Cinputs"], "Mg/ha/year"),
+        main = paste("equilibrium run of site:", soil_data[1,"ID"], "with plant inputs of ", Cinputs[7], "Mg/ha/year"),
         xlab="Time (years)", ylab="C stocks (Mg/ha)")
 legend("topleft", c("DPM", "RPM", "BIO", "HUM", "IOM"),
         lty=1, col=1:5, bty="n")
 ```
 
-The final size of the pools after this 100 year spinup are
+
 
 ```{r}
 poolSize1=as.numeric(tail(Ct1,1))
