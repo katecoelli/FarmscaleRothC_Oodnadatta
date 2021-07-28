@@ -1,0 +1,149 @@
+---
+title: "Running RothC in Equilibrium"
+author: "Kate Coelli"
+date: "28/07/2021"
+output: html_document
+---
+
+This file outlines the process required to run RothC in Equilibrium mode in order to determine starting values of the carbon fractions in order to run RothC in real Time.
+
+It is based on the process outlined in <https://www.bgc-jena.mpg.de/TEE/basics/2015/11/19/RothC/> which uses R package **SoilR**.
+
+As a starting point, I will just be testing this code on one location.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Preparing the information required by the model
+
+### Required libraries 
+```{r libraries, message = FALSE, warning = FALSE}
+library(SoilR)
+library(tidyverse)
+library(knitr)
+
+```
+
+### Required data
+Before this code can be run, the required data must be obtained and tidied
+
+```{r data tidying, eval = FALSE}
+#Tidy this first
+file.edit("soil_data_tidying.R")
+
+#followed by this
+file.edit("Equilibrium_monthly_data.R")
+```
+
+If these files have already been executed, load in the relevant outputs
+
+```{r data, echo = FALSE}
+soil_data<- read.csv("../Processed_Data/soil_data_0to30.csv")
+LTA_climate<- read.csv("../Processed_Data/LTA_climate_data.csv")
+kable(soil_data, caption = "Soil Data")
+kable(LTA_climate, caption ="Long term average climate data")
+```
+
+### Other information required by SoilR
+In this example we test a range of annual C inputs from 1 to 40 Mg/ha/yr
+When I was to loop through multiple sites replace the 1s with i and include in a forloop 
+```{r info}
+soil.thick=30  #Soil thickness (organic layer topsoil), in cm
+SOC=soil_data[1, "SOC"]       #Soil organic carbon in Mg/ha 
+clay=soil_data[1, "Clay"]         #Percent clay
+Cinputs=data.frame(Cinputs = seq(1,6,1))   #Annual C inputs to soil in Mg/ha/yr 
+
+```
+
+
+Specify the number of years over which to run the simulation - we have selected 100 years here
+
+```{r years}
+years = seq(1/12, 500, by=1/12) #number of years, in monthly steps
+```
+
+
+### Calculate the effects of climate on decomposition using soilR functions
+```{r fW and fT, echo = FALSE}
+fT=fT.RothC(LTA_climate$LTA_temp) #Temperature effects per month
+fW=fW.RothC(P=(LTA_climate$LTA_rain), E=(LTA_climate$LTA_evap), 
+              S.Thick = soil.thick, pClay = clay, 
+              pE = 1.0, bare = FALSE)$b #Moisture effects per month
+xi.frame=data.frame(years,rep(fT*fW,length.out=length(years)))
+kable(data.frame(Month = seq(1,12,1), Temperature_decomp=fT, Water_decomp=fW), caption = "monthly environmental effects on decomposition")
+
+```
+### Initial starting value for the resistant fraction
+
+In this example we use measured ROC from Jon Grays maps of NSW
+
+```{r reference, out.width = "70%", fig.align = "center", echo = FALSE}
+
+include_graphics("rmd_images/Gray_et_al_2019.jpg")
+
+```
+As with the other items we will include this in a loop and replace 1 with i when we calculate at multiple sites
+
+```{r}
+#IOM<- soil_data[1, "ROC"]
+
+IOM<- 11.88
+
+FallIOM=0.049*SOC^(1.139) #IOM using Falloon method
+
+```
+
+
+## Run the model
+
+```{r}
+res = data.frame(c_input = rep(1, length(years)), timestep = years, DPM=NA, RPM=NA, BIO=NA, HUM=NA, IOM=NA)    #nrow of matrix = number of cinput options * number years
+results<- list()
+
+
+##continue here tomorrow with the grid search to optimise by C-inputs at each site + heatmaps
+#figure out loop to:
+  #test C-inputs of 1:20 at each site
+  #get average fractions of last 5 years 
+  #sum these values
+  #compare this to the measured SOC value
+  #select option with minimum error
+  #base this on the grid search code I used for the WUE * HI work to get the heatmap and plot heatmaps.
+
+
+
+for(i in 1:nrow(Cinputs)){
+Model1<-RothCModel(t=years, C0=c(DPM=0, RPM=0, BIO=0, HUM=0, IOM=IOM),
+                   In=Cinputs[i,"Cinputs"], clay=clay, xi=xi.frame) #Loads the model
+tmp=getC(Model1) #calculates stocks for each pool per month
+res[3:7] = tmp
+results[[i]]<-res
+}
+
+monthly_Cfractions<- do.call(rbind, results)
+
+
+```
+
+The results can be plotted with the commands
+
+```{r}
+matplot(years, tmp, type="l", lty=1, col=1:5,
+        main = paste("equilibrium run of site:", soil_data[1,"ID"], "with plant inputs of ", Cinputs[6, "Cinputs"], "Mg/ha/year"),
+        xlab="Time (years)", ylab="C stocks (Mg/ha)")
+legend("topleft", c("DPM", "RPM", "BIO", "HUM", "IOM"),
+        lty=1, col=1:5, bty="n")
+```
+
+The final size of the pools after this 100 year spinup are
+
+```{r}
+poolSize1=as.numeric(tail(Ct1,1))
+names(poolSize1)<-c("DPM", "RPM", "BIO", "HUM", "IOM")
+kable()
+```
+
+
+
+
