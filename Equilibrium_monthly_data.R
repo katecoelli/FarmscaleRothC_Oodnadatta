@@ -53,9 +53,11 @@ points(extract_locations, pch = 16, col = "blue")
 
 #load in soil data information
 
-soil_data<- read.csv("../Processed_Data/soil_data_0to30.csv")
+soil_data<- read.csv("../Processed_Data/soil_data_equil.csv")
 
-sample_date<- as.numeric(soil_data$Year[1])
+
+sample_date<- as.numeric(substr(soil_data[1, "Sample.Date"])) #Here we assume all sampling dates are the same and just take the first date to determine year of sampling
+# then we collect 30 years of climate data prior to and including sampling year 
 
 ## Daily Climate Data from SILO
 # All climate data has been downloaded as SILO gridded data <https://www.longpaddock.qld.gov.au/silo/gridded-data/>.

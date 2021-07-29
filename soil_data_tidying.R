@@ -111,4 +111,15 @@ soil_data_final<- soil_data_final%>%
   dplyr::select(Longitude, Latitude, ID, Year, Sample.Date, everything(), -Sample.ID, -Field, -BD)
 
 
-write_csv(soil_data_final, "../Processed_Data/soil_data_0to30.csv")
+write_csv(soil_data_final, "../Processed_Data/soil_data.csv")
+
+
+#######################################################
+####### Final Soil Data for RothC Equilibrium #########
+#######################################################
+
+soil_data_equil<- soil_data_final%>%
+  select(-HOC, -POC, -Sand, -Year)
+
+write_csv(soil_data_final, "../Processed_Data/soil_data_equil.csv")
+
