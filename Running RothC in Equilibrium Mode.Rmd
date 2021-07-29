@@ -65,7 +65,7 @@ years = seq(1/12, 500, by=1/12) #number of years, in monthly steps
 
 
 ### Calculate the effects of climate on decomposition using soilR functions
-```{r fW and fT, echo = FALSE}
+```{r fW and fT}
 fT=fT.RothC(LTA_climate$LTA_temp) #Temperature effects per month
 fW=fW.RothC(P=(LTA_climate$LTA_rain), E=(LTA_climate$LTA_evap), 
               S.Thick = soil.thick, pClay = clay, 
@@ -88,8 +88,6 @@ As with the other items we will include this in a loop and replace 1 with i when
 ```{r}
 IOM<- soil_data[1, "ROC"]
 
-FallIOM=0.049*SOC^(1.139) #IOM using Falloon method
-
 ```
 
 
@@ -99,24 +97,16 @@ This is assumed to be in an equilibrium state.
 This model is run through a number of different cinput options (specified in a previous code chunk).
 
 ```{r}
-res = data.frame(c_input = NA, DPM=NA, RPM=NA, BIO=NA, HUM=NA, IOM=NA)    #nrow of matrix = number of cinput options * number years
+res = data.frame(c_input = NA, DPM=NA, RPM=NA, BIO=NA, HUM=NA, IOM=NA)    #nrow of matrix = 1 because res is an average value
 results<- list()
 
-
-##continue here tomorrow with the grid search to optimise by C-inputs at each site + heatmaps
-#figure out loop to:
-   #compare this to the measured SOC value
-  #select option with minimum error
-  #base this on the grid search code I used for the WUE * HI work to get the heatmap and plot heatmaps.
-
-  
 for(i in 1:length(Cinputs)){
 Model1<-RothCModel(t=years, C0=c(DPM=0, RPM=0, BIO=0, HUM=0, IOM=IOM),
                    In=Cinputs[i], clay=clay, xi=xi.frame) #Loads the model
 tmp=getC(Model1) #calculates stocks for each pool per month
 tmp=as.data.frame(tmp)
-lst_5_yr=tmp[(nrow(tmp)-5*12):nrow(tmp),]
-lst_5_yr_avge = colMeans(lst_5_yr)
+lst_5_yr=tmp[(nrow(tmp)-5*12):nrow(tmp),] #selects last 5 years of results
+lst_5_yr_avge = colMeans(lst_5_yr) #calculates average of each pool
 res[1] = Cinputs[i]
 res[2:6] = lst_5_yr_avge
 res$SOC = sum(res[2:6])
@@ -127,7 +117,6 @@ results[[i]]<-res
 avge_by_cinputs<- do.call(rbind, results)
 
 ```
-
 
 
 ## Optimise the model
@@ -153,44 +142,22 @@ fractions<- avge_by_cinputs%>%
 ```
 
 
-### Create a heatmap to show minimum error
+The final size of the pools after this 500 year spinup are displayed in the figure below
 
-
-```{r}
-
-ggplot()+
-  geom_tile(heat_map_errors, mapping = aes(COEFF, WUE, fill=crop_total_error))+
-  scale_fill_viridis(option = "D")+
-  geom_label(min_error, mapping = aes(COEFF, WUE, label = "min_error"))+
-  ggsave("heatmap_crop_WUEvsCOEFF_minerror.png")
-
-```
-
-
-The final size of the pools after this 100 year spinup are
-
-```{r}
+```{r, echo = FALSE}
 kable(fractions, caption = "Fractions to initialise real time model")
 
 ```
 
 
-The results can be plotted with the commands
+The spinup results are plotted below
 
-```{r}
+```{r, echo = FALSE}
 matplot(years, tmp, type="l", lty=1, col=1:5,
         main = paste("equilibrium run of site:", soil_data[1,"ID"], "with plant inputs of ", Cinputs[7], "Mg/ha/year"),
         xlab="Time (years)", ylab="C stocks (Mg/ha)")
 legend("topleft", c("DPM", "RPM", "BIO", "HUM", "IOM"),
         lty=1, col=1:5, bty="n")
-```
-
-
-
-```{r}
-poolSize1=as.numeric(tail(Ct1,1))
-names(poolSize1)<-c("DPM", "RPM", "BIO", "HUM", "IOM")
-kable()
 ```
 
 
