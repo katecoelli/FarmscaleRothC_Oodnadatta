@@ -31,7 +31,7 @@ GDA94_xy_55 = CRS("+init=epsg:28355")
 GDA94_xy_56 = CRS("+init=epsg:28356")
 
 ### Required Functions
-source("../../../R/soil_carbon_modelling_phd/useful_functions/Soil related functions.R")
+source("../../../../useful_functions/Soil related functions.R")
 
 ##############################
 ######### Site Data ##########
@@ -39,11 +39,12 @@ source("../../../R/soil_carbon_modelling_phd/useful_functions/Soil related funct
 
 
 ### Farm boundary
-boundary<- readOGR("../Data/boundary/Oodnadatta.shp")
+boundary<- readOGR("../../../../Data/Farms/Oodnadatta/boundary/Oodnadatta.shp")
 
 
 ### Soil data
-soil_data<- read.csv("../Data/soil_data.csv")
+#read in original data
+soil_data<- read.csv("../../../../Data/Farms/Oodnadatta/soil_data.csv")
 soil_data$DepthMin.cm.<- as.numeric(soil_data$DepthMin.cm.)
 soil_data$DepthMax.cm.<- as.numeric(soil_data$DepthMax.cm.)
 
@@ -66,9 +67,9 @@ colnames(soil_data)[6:10]<- c("Upper", "Lower", "Clay", "Sand", "SOC")
 ### Fraction Maps
 ## These fraction maps are from Jon Gray et al 2019
 
-ROC<-raster("../../NSW_extent_data/SOC_fractions_Gray/ROCtph0_30_boot_mean_gda 190305.tif")
-HOC<- raster("../../NSW_extent_data/SOC_fractions_Gray/HOCtph0_30_boot_mean_gda 190305.tif")
-POC<-raster("../../NSW_extent_data/SOC_fractions_Gray/POCtph0_30_boot_mean_final_gda_190305.tif")
+ROC<-raster("../../../../Data/NSW_extent_data/SOC_fractions_Gray/ROCtph0_30_boot_mean_gda 190305.tif")
+HOC<- raster("../../../../Data/NSW_extent_data/SOC_fractions_Gray/HOCtph0_30_boot_mean_gda 190305.tif")
+POC<-raster("../../../../Data/NSW_extent_data/SOC_fractions_Gray/POCtph0_30_boot_mean_final_gda_190305.tif")
 
 
 #extract fractions
@@ -80,21 +81,27 @@ soil_data$POC<- raster::extract(POC, soil_data[1:2])
 ####### tidy #########
 ######################
 
+#soil depth
+depth = 30 #depth in cm
 
 #Convert from 2 depths to 1 depth 
-soil_data_final<-soil_data%>%
+soil_data_tidy<-soil_data%>%
   group_by(Sample.ID, Field)%>%
   mutate(SOC_0to30= sum(SOC)/2)%>%
   mutate(sand_0to30= sum(Sand)/2)%>%
   mutate(clay_0to30= sum(Clay)/2)%>%
   ungroup()%>%
   dplyr::select(-Upper, -Lower, -Clay, -Sand, -SOC)%>%
-  rename(SOC=SOC_0to30, Sand = sand_0to30, Clay = clay_0to30)
+  rename(SOC=SOC_0to30, Sand = sand_0to30, clay = clay_0to30)%>%
+  unique()
 
-soil_data_final<- unique(soil_data_final)
+#calculate Field Capacity using function
+soil_data_tidy<- soil_data_tidy%>%
+  mutate(FC=FC(Sand,clay))%>%
+  mutate(bucket_size = FC * depth * 10)
 
 #calculate BD and convert SOC (%) to stocks (t/ha)
-soil_data_final<- soil_data_final%>%
+soil_data_tidy<- soil_data_tidy%>%
   mutate(BD=bd_glob(SOC, Van_Bemelen_factor, Sand, mid_depth= 15))%>%
   mutate(SOC=SOC*30*BD) #SOC(%)*BD*depth(cm)
 
@@ -105,13 +112,14 @@ soil_data_final<- soil_data_final%>%
 ####################################
 
 
-soil_data_final<- soil_data_final%>%
+soil_data_final<- soil_data_tidy%>%
   mutate(ID=paste0(Field, "_", Sample.ID))%>%
-  mutate(Year = substr(Sample.Date, start=nchar(Sample.Date)-3, stop = nchar(Sample.Date)-0))%>%
-  dplyr::select(Longitude, Latitude, ID, Year, Sample.Date, everything(), -Sample.ID, -Field, -BD)
+  dplyr::select(Longitude, Latitude, ID, Sample.Date, everything(), -Sample.ID, -Field, -BD)%>%
+  mutate(year = substr(Sample.Date, nchar(Sample.Date)-3, nchar(Sample.Date)))
 
 
-write_csv(soil_data_final, "../Processed_Data/soil_data.csv")
+
+# NB - do not include fractions because they will be determined for each site in the equil. run
 
 
 #######################################################
@@ -119,7 +127,41 @@ write_csv(soil_data_final, "../Processed_Data/soil_data.csv")
 #######################################################
 
 soil_data_equil<- soil_data_final%>%
-  select(-HOC, -POC, -Sand, -Year)
+  select(-HOC, -POC, -Sand, -FC, -bucket_size, -year)
 
 write_csv(soil_data_final, "../Processed_Data/soil_data_equil.csv")
+
+
+
+
+##############################################
+####### Final Soil Data for RothC RT #########
+##############################################
+
+#NB THIS CAN ONLY OCCUR ONCE EQUIL RUN HAS HAPPENED
+
+#Select required data for RT RothC run - ensure correct column names
+  #site_id
+  #year
+  #TOC
+  #RPM
+  #HUM
+  #IOM
+  #depth
+  #bucket_size
+  #clay
+
+fractions<- read.csv("../Processed_Data/fractions_for_initialisation.csv") #this file created in equilibrium run RMD
+
+soil_data_RT<- soil_data_final%>%
+  add_column(depth = 30)%>%
+  select(ID, year, SOC, bucket_size, clay)%>%
+  full_join(fractions[,c("ID", "RPM", "HUM", "IOM")])%>%
+  rename(site_id=ID, TOC = SOC)
+  
+soil_data_RT$depth<- 30  
+
+write_csv(soil_data_RT, "../Processed_Data/soil_data_RT.csv")
+
+
 
