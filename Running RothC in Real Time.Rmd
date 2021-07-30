@@ -1,0 +1,48 @@
+---
+title: "Running RothC in Real Time"
+author: "Kate Coelli"
+date: "29/07/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Preparing the information required by the model
+
+### Required libraries 
+```{r libraries, message = FALSE, warning = FALSE}
+library(SoilR)
+library(tidyverse)
+library(knitr)
+```
+
+### Required data
+Before this code can be run, the required data must be obtained and tidied
+This data has some overlap with the data required to run the model in equilibrium mode, and some differences
+* The soil data is the same as the equilibrium run
+* The monthly data is in real time, rather than long term averages
+* Equilibrium mode needs to be run to determine the optimised starting pools of carbon
+
+```{r data tidying, eval = FALSE}
+#Run this first
+file.edit("Running RothC in Equilibrium Mode.Rmd")
+
+#Tidy this first
+file.edit("soil_data_tidying.R")
+
+#followed by this
+file.edit("Equilibrium_monthly_data.R")
+
+```
+
+If these files have already been executed, load in the relevant outputs
+
+```{r data, echo = FALSE}
+soil_data<- read.csv("../Processed_Data/soil_data_equil.csv")
+Monthly_climate<- read.csv("../Processed_Data/LTA_climate_data.csv")
+initial_fractions<- read.csv("../Processed_Data/fractions_for_initialisation.csv")
+kable(soil_data, caption = "Soil Data")
+kable(LTA_climate, caption ="Long term average climate data")
+```
