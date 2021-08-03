@@ -31,6 +31,7 @@ GDA94_xy_55 = CRS("+init=epsg:28355")
 GDA94_xy_56 = CRS("+init=epsg:28356")
 
 ### Required Functions
+# These functions can be found in my github repo - https://github.com/katecoelli/Useful_functions
 source("../../../../useful_functions/Soil related functions.R")
 
 ##############################
