@@ -64,7 +64,7 @@ specify_site_specific_info<- function(soil_data, location_ID){
   
   clay<-soil_data%>%
     filter(ID == location_ID)%>%
-    select(clay) #Percent clay
+    select(Clay) #Percent clay
   
   IOM<- soil_data%>%
     filter(ID == location_ID)%>%
@@ -90,14 +90,14 @@ include_graphics("rmd_images/Gray_et_al_2019.jpg")
 
 ### Calculate the effects of climate on decomposition using soilR functions
 this is calculated for each site and is presented as a long term average
-```{r fW and fT}
+```{r fW and fT, cache = TRUE}
 all_sites_xi.frame <- list()
 all_sites_fT.fW_frame<- list()
 for(i in 1:nrow(soil_data)){
 fT=fT.RothC(LTA_climate$LTA_temp) #Temperature effects per month - using the same values across all sites
 site_data<-specify_site_specific_info(soil_data, location_ID = soil_data[i, "ID"])
 fW=fW.RothC(P=(LTA_climate$LTA_rain), E=(LTA_climate$LTA_evap), 
-              S.Thick = soil.thick, pClay = site_data$clay, 
+              S.Thick = soil.thick, pClay = site_data$Clay, 
               pE = 1.0, bare = FALSE)$b #Moisture effects per month
 fT.fW_frame<- data.frame(Site_id = site_data$location_ID, Month = rep(seq(1,12,1)), Temperature = fT, Water = fW)
 xi.frame=data.frame(years,rep(fT*fW,length.out=length(years)))
@@ -123,7 +123,7 @@ Here, we calculate the fractions on a monthly timestep and then take the average
 This is assumed to be in an equilibrium state. 
 This model is run through a number of different cinput options (specified in a previous code chunk).
 
-```{r}
+```{r modelrun, cache = TRUE}
 
 allsites_avge_by_cinputs<-list()
 for(j in 1:nrow(soil_data)){
@@ -134,7 +134,7 @@ for(j in 1:nrow(soil_data)){
   xi.frame<- all_sites_xi.frame%>%
     filter(ID==site_data[1,"location_ID"])
   Model1<-RothCModel(t=years, C0=c(DPM=0, RPM=0, BIO=0, HUM=0, IOM=site_data[1,"ROC"]),
-                     In=Cinputs[i], clay=site_data[1,"clay"], xi=xi.frame) #Loads the model
+                     In=Cinputs[i], clay=site_data[1,"Clay"], xi=xi.frame) #Loads the model
   tmp=getC(Model1) #calculates stocks for each pool per month
   tmp=as.data.frame(tmp)
   lst_5_yr=tmp[(nrow(tmp)-5*12):nrow(tmp),] #selects last 5 years of results
@@ -155,7 +155,7 @@ allsites_avge_by_cinputs[[j]]<- avge_by_cinputs
 Here, the total SOC, determined by the sum of the fractions is compared to the SOC measurement at the site.
 The summed fractions of the cinput which produces the smallest error will be used as the starting fractions to run the model in real time.
 
-```{r}
+```{r optimise model, cache = TRUE}
 all_sites_error<- list()
 for(j in 1:length(allsites_avge_by_cinputs)){
   tmp<-allsites_avge_by_cinputs[[j]]
